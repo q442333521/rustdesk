@@ -82,6 +82,7 @@ class RustdeskImpl {
       required bool forceRelay,
       required String password,
       required bool isSharedPassword,
+      String? connToken,
       dynamic hint}) {
     return js.context.callMethod('setByName', [
       'session_add_sync',
@@ -173,18 +174,12 @@ class RustdeskImpl {
   }
 
   Future<void> sessionRecordScreen(
-      {required UuidValue sessionId,
-      required bool start,
-      required int display,
-      required int width,
-      required int height,
-      dynamic hint}) {
+      {required UuidValue sessionId, required bool start, dynamic hint}) {
     throw UnimplementedError("sessionRecordScreen");
   }
 
-  Future<void> sessionRecordStatus(
-      {required UuidValue sessionId, required bool status, dynamic hint}) {
-    throw UnimplementedError("sessionRecordStatus");
+  bool sessionGetIsRecording({required UuidValue sessionId, dynamic hint}) {
+    return false;
   }
 
   Future<void> sessionReconnect(
@@ -284,16 +279,14 @@ class RustdeskImpl {
 
   Future<String?> sessionGetImageQuality(
       {required UuidValue sessionId, dynamic hint}) {
-    return Future(() => js.context
-        .callMethod('getByName', ['option:session', 'image_quality']));
+    return Future(() => js.context.callMethod('getByName', ['image_quality']));
   }
 
   Future<void> sessionSetImageQuality(
       {required UuidValue sessionId, required String value, dynamic hint}) {
-    return Future(() => js.context.callMethod('setByName', [
-          'option:session',
-          jsonEncode({'name': 'image_quality', 'value': value})
-        ]));
+    print('set image quality: $value');
+    return Future(
+        () => js.context.callMethod('setByName', ['image_quality', value]));
   }
 
   Future<String?> sessionGetKeyboardMode(
@@ -374,17 +367,15 @@ class RustdeskImpl {
   Future<void> sessionSetCustomImageQuality(
       {required UuidValue sessionId, required int value, dynamic hint}) {
     return Future(() => js.context.callMethod('setByName', [
-          'option:session',
-          jsonEncode({'name': 'custom_image_quality', 'value': value})
+          'custom_image_quality',
+          value,
         ]));
   }
 
   Future<void> sessionSetCustomFps(
       {required UuidValue sessionId, required int fps, dynamic hint}) {
-    return Future(() => js.context.callMethod('setByName', [
-          'option:session',
-          jsonEncode({'name': 'custom_fps', 'value': fps})
-        ]));
+    return Future(
+        () => js.context.callMethod('setByName', ['custom-fps', fps]));
   }
 
   Future<void> sessionLockScreen({required UuidValue sessionId, dynamic hint}) {
@@ -694,7 +685,10 @@ class RustdeskImpl {
       required int height,
       dynamic hint}) {
     // note: restore on disconnected
-    throw UnimplementedError("sessionChangeResolution");
+    return Future(() => js.context.callMethod('setByName', [
+          'change_resolution',
+          jsonEncode({'display': display, 'width': width, 'height': height})
+        ]));
   }
 
   Future<void> sessionSetSize(
@@ -708,7 +702,8 @@ class RustdeskImpl {
 
   Future<void> sessionSendSelectedSessionId(
       {required UuidValue sessionId, required String sid, dynamic hint}) {
-    throw UnimplementedError("sessionSendSelectedSessionId");
+    return Future(
+        () => js.context.callMethod('setByName', ['selected_sid', sid]));
   }
 
   Future<List<String>> mainGetSoundInputs({dynamic hint}) {
@@ -1119,8 +1114,7 @@ class RustdeskImpl {
   }
 
   Future<String> mainGetLastRemoteId({dynamic hint}) {
-    return Future(
-        () => js.context.callMethod('getByName', ['option', 'last_remote_id']));
+    return Future(() => mainGetLocalOption(key: 'last_remote_id'));
   }
 
   Future<void> mainGetSoftwareUpdateUrl({dynamic hint}) {
@@ -1211,7 +1205,19 @@ class RustdeskImpl {
   }
 
   Future<String> mainLoadAb({dynamic hint}) {
-    return Future(() => js.context.callMethod('getByName', ['load_ab']));
+    Completer<String> completer = Completer();
+    Future<String> timeoutFuture = completer.future.timeout(
+      Duration(seconds: 2),
+      onTimeout: () {
+        completer.completeError(TimeoutException('Load ab timed out'));
+        return 'Timeout';
+      },
+    );
+    js.context["onLoadAbFinished"] = (String s) {
+      completer.complete(s);
+    };
+    js.context.callMethod('setByName', ['load_ab']);
+    return timeoutFuture;
   }
 
   Future<void> mainSaveGroup({required String json, dynamic hint}) {
@@ -1224,7 +1230,19 @@ class RustdeskImpl {
   }
 
   Future<String> mainLoadGroup({dynamic hint}) {
-    return Future(() => js.context.callMethod('getByName', ['load_group']));
+    Completer<String> completer = Completer();
+    Future<String> timeoutFuture = completer.future.timeout(
+      Duration(seconds: 2),
+      onTimeout: () {
+        completer.completeError(TimeoutException('Load group timed out'));
+        return 'Timeout';
+      },
+    );
+    js.context["onLoadGroupFinished"] = (String s) {
+      completer.complete(s);
+    };
+    js.context.callMethod('setByName', ['load_group']);
+    return timeoutFuture;
   }
 
   Future<void> sessionSendPointer(
@@ -1804,6 +1822,10 @@ class RustdeskImpl {
   Future<void> sessionSelectFiles(
       {required UuidValue sessionId, dynamic hint}) {
     return Future(() => js.context.callMethod('setByName', ['select_files']));
+  }
+
+  String? sessionGetConnToken({required UuidValue sessionId, dynamic hint}) {
+    throw UnimplementedError("sessionGetConnToken");
   }
 
   void dispose() {}
